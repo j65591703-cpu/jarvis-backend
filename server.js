@@ -14,13 +14,16 @@ app.get('/', (req, res) => res.send('JARVIS backend is running.'));
 
 app.post('/ask', async (req, res) => {
   try {
-    const { question } = req.body;
+    const { question, language } = req.body;
     if (!question || !question.trim()) {
       return res.status(400).json({ error: 'question is required' });
     }
     if (!GROQ_API_KEY) {
       return res.status(500).json({ error: 'Server par GROQ_API_KEY set nahi hai.' });
     }
+    const langLine = language
+      ? `Hamesha "${language}" language mein jawab do (us language ki script mein likho).`
+      : 'Hamesha Hinglish (Hindi + English mix, Roman script) mein jawab do.';
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -35,8 +38,8 @@ app.post('/ask', async (req, res) => {
             role: 'system',
             content:
               'Tum JARVIS ho, ek voice assistant jo bolkar jawab deta hai. ' +
-              'Hamesha Hinglish (Hindi + English mix, Roman script) mein, seedha aur SHORT jawab do — ' +
-              'max 3-4 sentences, bolne layak, koi markdown/emoji/list format mat use karo. ' +
+              langLine + ' ' +
+              'Seedha aur SHORT jawab do — max 3-4 sentences, bolne layak, koi markdown/emoji/list format mat use karo. ' +
               'GK, science, math, reasoning, coding, kisi bhi subject ka sawaal ho, seedha aur accurate jawab do.'
           },
           { role: 'user', content: question }
