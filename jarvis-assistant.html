@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a84ff">
+<link rel="icon" href="icon-192.png">
+<title>J.A.R.V.I.S. AI Assistant</title>
+<style>
+  :root{
+    --blue:#2196ff; --blue-dim:#0d6fd8; --bg:#020510; --panel:#0a1830cc;
+    --text:#d6ecff; --muted:#4a6690; --danger:#ff4d5e; --amber:#ffb300; --violet:#7b5cff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif;}
+  html,body{height:100%;background:var(--bg);color:var(--text);overflow-x:hidden;}
+  body{
+    background:radial-gradient(circle at 50% 10%, #08234a 0%, #020510 55%, #000 100%);
+    min-height:100vh; display:flex; flex-direction:column;
+  }
+  body::before{
+    content:''; position:fixed; inset:0; pointer-events:none; opacity:.05;
+    background-image:linear-gradient(var(--blue) 1px, transparent 1px), linear-gradient(90deg, var(--blue) 1px, transparent 1px);
+    background-size:38px 38px;
+  }
+
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px; border-bottom:1px solid #123055; position:relative; z-index:3; background:#020c1acc; backdrop-filter:blur(6px);
+  }
+  #hamburger{font-size:20px; color:var(--blue); background:none; border:1px solid #123055; border-radius:4px; padding:4px 10px; cursor:pointer;}
+  .brand{display:flex; align-items:center; gap:8px; font-weight:800; letter-spacing:3px; font-size:14px; color:var(--blue); text-shadow:0 0 10px #2196ff88;}
+  .brand .dot{width:8px;height:8px;border-radius:50%;background:#00e676;box-shadow:0 0 10px #00e676; animation:blink 1.4s infinite;}
+  @keyframes blink{50%{opacity:.2}}
+  #clock{font-size:12px; color:var(--muted);}
+  #langSelect{
+    background:#04152e; color:var(--blue); border:1px solid #123055; border-radius:4px;
+    font-size:11px; padding:4px 6px; max-width:88px;
+  }
+
+  #sidebar{
+    position:fixed; top:0; left:-280px; width:270px; height:100%; background:#020c1a; border-right:1px solid #123055;
+    z-index:10; transition:left .25s ease; display:flex; flex-direction:column; padding:14px;
+  }
+  #sidebar.open{left:0;}
+  #sidebar h3{font-size:11px; color:var(--muted); letter-spacing:2px; margin-bottom:10px;}
+  #liveBtn{ background:#04152e; border:1px solid var(--blue); color:var(--blue); padding:8px; border-radius:4px; font-size:12px; margin-bottom:14px; cursor:pointer; letter-spacing:1px; }
+  #sessionList{flex:1; overflow-y:auto;}
+  .sessionItem{ padding:9px 10px; font-size:12px; color:var(--text); border:1px solid #123055; border-radius:4px; margin-bottom:6px; cursor:pointer; opacity:.85; }
+  .sessionItem:hover{border-color:var(--blue); color:var(--blue);}
+  #overlay{position:fixed; inset:0; background:#000a; z-index:9; display:none;}
+  #overlay.show{display:block;}
+
+  main{flex:1; display:flex; flex-direction:column; align-items:center; padding:20px 16px 10px; position:relative; z-index:2;}
+
+  #greet{font-size:15px; color:var(--muted); margin-bottom:6px;}
+  #greet b{color:var(--blue);}
+
+  /* Sound wave visualizer replacing the circular orb */
+  #waveWrap{ width:100%; max-width:520px; height:150px; position:relative; margin-top:6px; }
+  #waveCanvas{ width:100%; height:100%; display:block; }
+  #stateRing{ position:absolute; inset:0; border-radius:16px; pointer-events:none; transition:.3s; }
+  #stateRing.listening{ box-shadow:0 0 40px #2196ff55 inset; }
+  #stateRing.wake{ box-shadow:0 0 40px #ffb30055 inset; }
+  #stateRing.thinking{ box-shadow:0 0 40px #7b5cff55 inset; }
+  #stateRing.speaking{ box-shadow:0 0 50px #2196ffaa inset; }
+
+  #statusText{margin-top:14px; font-size:13px; letter-spacing:3px; text-transform:uppercase; color:var(--blue-dim);}
+  #transcript{margin-top:8px; min-height:18px; font-size:14px; color:#8fc7ff; text-align:center; max-width:600px;}
+  #response{margin-top:6px; font-size:15px; color:var(--text); text-align:center; max-width:640px; min-height:20px; line-height:1.5;}
+
+  #micBtn{
+    margin-top:22px; width:64px; height:64px; border-radius:50%; border:2px solid var(--blue);
+    background:#04152e; color:var(--blue); font-size:26px; cursor:pointer; transition:.25s;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 0 20px #2196ff44;
+  }
+  #micBtn.on{background:var(--blue); color:#000; box-shadow:0 0 26px var(--blue);}
+  #micBtn:active{transform:scale(.92);}
+
+  #chips{display:flex; flex-wrap:wrap; gap:7px; justify-content:center; max-width:680px; margin:22px auto 4px;}
+  .chip{ padding:7px 13px; font-size:11px; border:1px solid #123055; border-radius:20px; color:var(--muted); background:var(--panel); cursor:pointer; transition:.2s; letter-spacing:.5px; }
+  .chip:hover, .chip:active{border-color:var(--blue); color:var(--blue); box-shadow:0 0 8px #2196ff33;}
+
+  #consoleWrap{width:100%; max-width:680px; margin:16px auto 24px; border:1px solid #123055; border-radius:10px; background:#02081699; overflow:hidden;}
+  #consoleHead{padding:8px 14px; font-size:10px; letter-spacing:2px; color:var(--muted); border-bottom:1px solid #123055; display:flex; justify-content:space-between;}
+  #clearLog{cursor:pointer;}
+  #log{max-height:220px; overflow-y:auto; padding:10px 14px; font-size:12px; line-height:1.85;}
+  #log .u{color:#8fc7ff;} #log .j{color:var(--blue);} #log .e{color:var(--danger);} #log .t{color:#254670; font-size:10px;}
+  #log .u::before{content:'❯ '; color:var(--muted);}
+  #log .j::before{content:'$ '; color:var(--blue-dim);}
+
+  footer{text-align:center; font-size:10px; color:#1a3a66; padding:8px; letter-spacing:1px; position:relative; z-index:2;}
+</style>
+</head>
+<body>
+<div id="overlay"></div>
+<div id="sidebar">
+  <h3>◉ RECENT SESSIONS</h3>
+  <button id="liveBtn">⬤ LIVE VIEW</button>
+  <div id="sessionList"></div>
+</div>
+
+<header>
+  <button id="hamburger">☰</button>
+  <div class="brand"><span class="dot"></span> J.A.R.V.I.S.</div>
+  <select id="langSelect" title="Language">
+    <optgroup label="Indian Languages">
+      <option value="hi-IN">हिन्दी</option>
+      <option value="bho-IN">भोजपुरी</option>
+      <option value="ta-IN">தமிழ்</option>
+      <option value="te-IN">తెలుగు</option>
+      <option value="bn-IN">বাংলা</option>
+      <option value="mr-IN">मराठी</option>
+      <option value="gu-IN">ગુજરાતી</option>
+    </optgroup>
+    <optgroup label="World Languages">
+      <option value="en-US">English</option>
+      <option value="es-ES">Español</option>
+      <option value="fr-FR">Français</option>
+      <option value="zh-CN">中文</option>
+      <option value="ar-SA">العربية</option>
+    </optgroup>
+  </select>
+  <div id="clock">--:--:--</div>
+</header>
+
+<main>
+  <div id="greet">Namaste, main <b>JARVIS</b> hoon. Mic dabaiye, phir boliye "Hello Jarvis".</div>
+
+  <div id="waveWrap">
+    <canvas id="waveCanvas"></canvas>
+    <div id="stateRing"></div>
+  </div>
+
+  <div id="statusText">Offline</div>
+  <div id="transcript"></div>
+  <div id="response"></div>
+
+  <button id="micBtn">🎙</button>
+
+  <div id="chips">
+    <div class="chip" data-cmd="व्हाट्सएप्प खोलो">WhatsApp</div>
+    <div class="chip" data-cmd="मौसम कैसा है">Weather</div>
+    <div class="chip" data-cmd="आज की खबर सुनाओ">News</div>
+    <div class="chip" data-cmd="यूट्यूब खोलो">YouTube</div>
+    <div class="chip" data-cmd="जीमेल खोलो">Gmail</div>
+    <div class="chip" data-cmd="मैप्स खोलो">Maps</div>
+    <div class="chip" data-cmd="समय बताओ">Time</div>
+    <div class="chip" data-cmd="मेरे कॉन्टैक्ट दिखाओ">Contacts</div>
+  </div>
+
+  <div id="consoleWrap">
+    <div id="consoleHead"><span id="logTitle">LIVE LOG</span><span id="clearLog">CLEAR ALL</span></div>
+    <div id="log"></div>
+  </div>
+</main>
+
+<footer>voice engine active only while this tab is open · Chrome recommended</footer>
+
+<script>
+/* ================= DOM refs ================= */
+const statusText = document.getElementById('statusText');
+const transcriptEl = document.getElementById('transcript');
+const responseEl = document.getElementById('response');
+const micBtn = document.getElementById('micBtn');
+const logEl = document.getElementById('log');
+const logTitle = document.getElementById('logTitle');
+const clockEl = document.getElementById('clock');
+const sidebar = document.getElementById('sidebar');
+const overlay = document.getElementById('overlay');
+const sessionList = document.getElementById('sessionList');
+const stateRing = document.getElementById('stateRing');
+const waveCanvas = document.getElementById('waveCanvas');
+const waveCtx = waveCanvas.getContext('2d');
+
+let engineOn = false;
+let awaitingWake = true;
+let wakeHandledForUtterance = false;
+let speakingPause = false;
+let recognition;
+let bestVoiceHi = null, bestVoiceEn = null, bestVoice = null;
+let bestVoiceSelected = null;
+let selectedLang = localStorage.getItem('jarvis_lang') || 'hi-IN';
+let viewingSession = null;
+let uiState = 'idle'; // idle | listening | wake | thinking | speaking
+
+const canSpeak = ('speechSynthesis' in window) && (typeof SpeechSynthesisUtterance !== 'undefined');
+const WAKE_PHRASES = ['hello jarvis','हेलो जार्विस','हैलो जार्विस','ओके जार्विस','ok jarvis','जार्विस'];
+const AI_BACKEND_URL = "https://jarvis-backend-sxvc.onrender.com/ask";
+
+setInterval(() => { clockEl.textContent = new Date().toLocaleTimeString('en-IN', {hour12:false}); }, 1000);
+
+/* ================= Sound-wave visualizer ================= */
+function resizeCanvas(){
+  waveCanvas.width = waveCanvas.clientWidth * devicePixelRatio;
+  waveCanvas.height = waveCanvas.clientHeight * devicePixelRatio;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function setUIState(s){
+  uiState = s;
+  stateRing.className = s === 'idle' ? '' : s;
+}
+
+let waveT = 0;
+function drawWave(){
+  requestAnimationFrame(drawWave);
+  const w = waveCanvas.width, h = waveCanvas.height;
+  waveCtx.clearRect(0,0,w,h);
+  const mid = h/2;
+  const bars = 60;
+  const gap = w / bars;
+
+  let amp, speed, colorA, colorB;
+  switch(uiState){
+    case 'listening': amp = 0.28; speed = 0.18; colorA = '#2196ff'; colorB = '#00e5ff'; break;
+    case 'wake':       amp = 0.34; speed = 0.30; colorA = '#ffb300'; colorB = '#ff7b54'; break;
+    case 'thinking':   amp = 0.22; speed = 0.45; colorA = '#7b5cff'; colorB = '#2196ff'; break;
+    case 'speaking':   amp = 0.42; speed = 0.35; colorA = '#2196ff'; colorB = '#7b5cff'; break;
+    default:            amp = 0.05; speed = 0.05; colorA = '#123055'; colorB = '#0d6fd8'; break;
+  }
+  waveT += speed;
+
+  const grad = waveCtx.createLinearGradient(0,0,w,0);
+  grad.addColorStop(0, colorA); grad.addColorStop(1, colorB);
+  waveCtx.fillStyle = grad;
+
+  for(let i=0;i<bars;i++){
+    const x = i*gap;
+    const n = Math.sin(i*0.35 + waveT) * Math.sin(i*0.12 - waveT*0.6) * (uiState==='idle' ? 1 : (0.6 + Math.random()*0.4));
+    const barH = Math.max(3, Math.abs(n) * amp * h);
+    waveCtx.fillRect(x, mid - barH/2, gap*0.6, barH);
+  }
+}
+drawWave();
+
+/* ================= Voice selection ================= */
+function isMaleVoice(v){
+  const n = v.name.toLowerCase();
+  if(n.includes('female')) return false;
+  if(n.includes('male')) return true;
+  const maleNames = ['david','daniel','alex','fred','george','james','mark','rishi','hemant','ravi','ryan','guy','matthew','arjun','prabhat'];
+  return maleNames.some(mn => n.includes(mn));
+}
+function pickVoice(){
+  if(!canSpeak) return;
+  const voices = speechSynthesis.getVoices();
+  if(!voices.length) return;
+  bestVoiceHi = voices.find(v => v.lang === 'hi-IN' && isMaleVoice(v)) || voices.find(v => v.lang === 'hi-IN') || null;
+  bestVoiceEn = voices.find(v => /en-IN/i.test(v.lang) && isMaleVoice(v)) || voices.find(v => /^en/i.test(v.lang) && isMaleVoice(v)) || voices.find(v => /en-IN/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
+  bestVoice = bestVoiceHi || bestVoiceEn || voices[0];
+  updateSelectedVoice();
+}
+function updateSelectedVoice(){
+  if(!canSpeak) return;
+  const voices = speechSynthesis.getVoices();
+  const baseLang = selectedLang.split('-')[0];
+  bestVoiceSelected =
+    voices.find(v => v.lang === selectedLang && isMaleVoice(v)) ||
+    voices.find(v => v.lang === selectedLang) ||
+    voices.find(v => v.lang.startsWith(baseLang) && isMaleVoice(v)) ||
+    voices.find(v => v.lang.startsWith(baseLang)) || null;
+}
+if(canSpeak){ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+
+/* ================= Language selector ================= */
+const langSelect = document.getElementById('langSelect');
+langSelect.value = selectedLang;
+langSelect.addEventListener('change', () => {
+  selectedLang = langSelect.value;
+  localStorage.setItem('jarvis_lang', selectedLang);
+  updateSelectedVoice();
+  if(recognition){ recognition.lang = selectedLang; }
+  addLog('Language set to: ' + langSelect.options[langSelect.selectedIndex].text, 'j');
+});
+
+/* ================= History (localStorage, ChatGPT-style sessions) ================= */
+const HISTORY_KEY = 'jarvis_history_v3';
+function getHistory(){ try{ return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }catch(e){ return []; } }
+function setHistory(items){ if(items.length > 500) items = items.slice(items.length-500); localStorage.setItem(HISTORY_KEY, JSON.stringify(items)); }
+function todayKey(){ return new Date().toISOString().slice(0,10); }
+
+function addLog(text, cls){
+  const now = new Date();
+  const time = now.toLocaleTimeString('en-IN', {hour12:false});
+  const date = now.toISOString().slice(0,10);
+  const items = getHistory();
+  items.push({date, time, text, cls});
+  setHistory(items);
+  if(viewingSession === null) renderLine(text, cls, time);
+  renderSidebar();
+}
+function renderLine(text, cls, time){
+  const wrap = document.createElement('div');
+  const t = document.createElement('span'); t.className='t'; t.textContent = '['+time+'] ';
+  const body = document.createElement('span'); body.className = cls || ''; body.textContent = text;
+  wrap.appendChild(t); wrap.appendChild(body);
+  logEl.appendChild(wrap);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function renderLiveLog(){
+  viewingSession = null; logTitle.textContent = 'LIVE LOG'; logEl.innerHTML = '';
+  getHistory().filter(it => it.date === todayKey()).forEach(it => renderLine(it.text, it.cls, it.time));
+}
+function renderSessionLog(date){
+  viewingSession = date; logTitle.textContent = 'SESSION · ' + date; logEl.innerHTML = '';
+  getHistory().filter(it => it.date === date).forEach(it => renderLine(it.text, it.cls, it.time));
+  sidebar.classList.remove('open'); overlay.classList.remove('show');
+}
+function renderSidebar(){
+  const items = getHistory();
+  const dates = [...new Set(items.map(i => i.date))].sort().reverse();
+  sessionList.innerHTML = '';
+  if(!dates.length){ sessionList.innerHTML = '<div style="color:#4a6690;font-size:11px;">Koi history nahi mili.</div>'; return; }
+  dates.forEach(d => {
+    const dayItems = items.filter(i => i.date === d);
+    const firstUser = dayItems.find(i => i.cls === 'u');
+    const preview = firstUser ? firstUser.text.slice(0,34) : (dayItems[0] ? dayItems[0].text.slice(0,34) : d);
+    const el = document.createElement('div');
+    el.className = 'sessionItem';
+    el.innerHTML = '<b>' + d + '</b><br>' + preview + (preview.length===34?'…':'');
+    el.onclick = () => renderSessionLog(d);
+    sessionList.appendChild(el);
+  });
+}
+document.getElementById('clearLog').onclick = () => { localStorage.removeItem(HISTORY_KEY); logEl.innerHTML=''; renderSidebar(); };
+document.getElementById('liveBtn').onclick = () => { renderLiveLog(); sidebar.classList.remove('open'); overlay.classList.remove('show'); };
+document.getElementById('hamburger').onclick = () => { sidebar.classList.add('open'); overlay.classList.add('show'); };
+overlay.onclick = () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); };
+renderLiveLog(); renderSidebar();
+
+/* ================= Contact book (stored locally in this browser) ================= */
+const CONTACTS_KEY = 'jarvis_contacts_v1';
+function getContacts(){ try{ return JSON.parse(localStorage.getItem(CONTACTS_KEY)) || {}; }catch(e){ return {}; } }
+function saveContacts(c){ localStorage.setItem(CONTACTS_KEY, JSON.stringify(c)); }
+function addContact(name, number){
+  const c = getContacts();
+  c[name.toLowerCase()] = number.replace(/[^0-9+]/g,'');
+  saveContacts(c);
+}
+function findContact(name){
+  const c = getContacts();
+  const key = Object.keys(c).find(k => name.toLowerCase().includes(k) || k.includes(name.toLowerCase()));
+  return key ? c[key] : null;
+}
+
+/* ================= Speak (pauses mic, avoids echo) ================= */
+function speak(text, lang){
+  responseEl.textContent = text;
+  addLog('JARVIS: ' + text, 'j');
+  setUIState('speaking');
+
+  if(!lang){
+    // No explicit language passed (e.g. our own fixed phrases) — use whatever the user selected
+    lang = selectedLang;
+  }
+  let wasListening = false;
+  if(recognition && engineOn){ speakingPause = true; try{ recognition.stop(); wasListening = true; }catch(e){} }
+
+  if(!canSpeak){
+    speakingPause = false;
+    setUIState(engineOn ? (awaitingWake ? 'listening' : 'idle') : 'idle');
+    if(wasListening) setTimeout(() => { try{ recognition.start(); }catch(e){} }, 300);
+    return;
+  }
+  try{
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang; u.rate = 0.97; u.pitch = 0.85; u.volume = 1;
+    u.voice = (lang === selectedLang ? bestVoiceSelected : (lang === 'en-IN' ? bestVoiceEn : bestVoiceHi)) || bestVoiceSelected || bestVoice;
+    u.onend = () => {
+      speakingPause = false;
+      setUIState(engineOn ? (awaitingWake ? 'listening' : 'idle') : 'idle');
+      if(wasListening && engineOn){ setTimeout(() => { try{ recognition.start(); }catch(e){} }, 350); }
+    };
+    speechSynthesis.speak(u);
+  }catch(e){
+    addLog('(Voice output unsupported)', 'e');
+    speakingPause = false;
+    if(wasListening) setTimeout(() => { try{ recognition.start(); }catch(e){} }, 300);
+  }
+}
+
+/* ================= App launcher ================= */
+function launchApp(schemeUrl, fallbackUrl){
+  let blurred = false;
+  const onBlur = () => { blurred = true; };
+  window.addEventListener('blur', onBlur);
+  try{ window.location.href = schemeUrl; }catch(e){}
+  setTimeout(() => { window.removeEventListener('blur', onBlur); if(!blurred && fallbackUrl) window.open(fallbackUrl, '_blank'); }, 1200);
+}
+const appMap = [
+  { keys:['इंस्टाग्राम','instagram'], scheme:'instagram://app', web:'https://instagram.com', name:'Instagram' },
+  { keys:['फेसबुक','facebook'], scheme:'fb://facewebmodal/', web:'https://facebook.com', name:'Facebook' },
+  { keys:['यूट्यूब','youtube'], scheme:'vnd.youtube://', web:'https://youtube.com', name:'YouTube' },
+  { keys:['जीमेल','gmail','ईमेल'], scheme:'googlegmail://', web:'https://mail.google.com', name:'Gmail' },
+  { keys:['मैप्स','maps','नक्शा'], scheme:'geo:0,0?q=', web:'https://maps.google.com', name:'Maps' },
+  { keys:['स्पॉटिफाई','spotify'], scheme:'spotify://', web:'https://open.spotify.com', name:'Spotify' },
+  { keys:['टेलीग्राम','telegram'], scheme:'tg://', web:'https://web.telegram.org', name:'Telegram' },
+  { keys:['ट्विटर','twitter','एक्स'], scheme:'twitter://', web:'https://x.com', name:'Twitter/X' },
+  { keys:['प्ले स्टोर','play store'], scheme:'market://', web:'https://play.google.com/store', name:'Play Store' },
+  { keys:['कैमरा','camera'], scheme:'intent://#Intent;action=android.media.action.IMAGE_CAPTURE;end', web:null, name:'Camera' },
+  { keys:['सेटिंग्स','settings'], scheme:'intent://#Intent;action=android.settings.SETTINGS;end', web:null, name:'Settings' },
+];
+
+/* ================= Weather (GPS + Open-Meteo, no API key needed) ================= */
+function weatherCodeToText(code){
+  const map = {0:'saaf aasman',1:'kaafi saaf',2:'kuch badal',3:'badal chhaye hue',45:'kohra',48:'kohra',
+    51:'halki boondabaandi',61:'halki baarish',63:'baarish',65:'tez baarish',71:'halki barfbaari',80:'baarish ke jhonke',95:'tez toofan'};
+  return map[code] || 'mixed mausam';
+}
+function getWeather(){
+  return new Promise((resolve) => {
+    if(!navigator.geolocation){ resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      try{
+        const { latitude, longitude } = pos.coords;
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m`);
+        const data = await res.json();
+        const c = data.current;
+        resolve(`Abhi temperature hai ${Math.round(c.temperature_2m)} degree, ${weatherCodeToText(c.weather_code)}, humidity ${c.relative_humidity_2m} percent, aur hawa ${Math.round(c.wind_speed_10m)} km/h speed se chal rahi hai.`);
+      }catch(e){ resolve(null); }
+    }, () => resolve(null), { timeout: 8000 });
+  });
+}
+
+/* ================= News (public RSS via CORS proxy) ================= */
+async function getNews(){
+  try{
+    const proxied = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://news.google.com/rss?hl=hi-IN&gl=IN&ceid=IN:hi');
+    const res = await fetch(proxied);
+    const xmlText = await res.text();
+    const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+    const items = [...doc.querySelectorAll('item')].slice(0,5).map(it => it.querySelector('title')?.textContent).filter(Boolean);
+    if(!items.length) return null;
+    return 'Aaj ki mukhya khabrein: ' + items.join('. ');
+  }catch(e){ return null; }
+}
+
+/* ================= Alarms (foreground only — tab must stay open) ================= */
+const activeAlarms = [];
+function setAlarmIn(minutes, label){
+  const ms = minutes * 60000;
+  const id = setTimeout(() => {
+    speak((label || 'Alarm') + ' — time ho gaya hai, boss!');
+    if('Notification' in window && Notification.permission === 'granted'){
+      new Notification('JARVIS Alarm', { body: label || 'Time ho gaya!' });
+    }
+  }, ms);
+  activeAlarms.push(id);
+  if('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+}
+function parseAlarmMinutes(cmd){
+  const m = cmd.match(/(\d+)\s*(minute|min|ghante|hour|second|sec)/i);
+  if(!m) return null;
+  let n = parseInt(m[1]);
+  if(/hour|ghante/i.test(m[2])) n *= 60;
+  if(/second|sec/i.test(m[2])) n = n/60;
+  return n;
+}
+
+/* ================= Math / arithmetic ================= */
+function tryMath(raw){
+  let s = raw.toLowerCase()
+    .replace(/plus|jodo|jod|add/g, '+').replace(/minus|ghatao|ghata|subtract/g, '-')
+    .replace(/into|multiply|guna|gunaa|times|x /g, '*').replace(/divide|bhag|bhaag|by/g, '/')
+    .replace(/percent|pratishat|%/g, '/100*').replace(/kitna|hota|hai|hoga|is|equals|what|whats|=|\?/g, '').trim();
+  if(!/^[0-9+\-*/.()\s]+$/.test(s) || !/[0-9]/.test(s) || s.replace(/[0-9\s]/g,'').length === 0) return null;
+  try{
+    const result = Function('"use strict";return (' + s + ')')();
+    if(typeof result === 'number' && isFinite(result)) return Math.round(result * 10000) / 10000;
+  }catch(e){}
+  return null;
+}
+
+/* ================= AI backend + Wikipedia fallback ================= */
+async function askAI(question){
+  if(!AI_BACKEND_URL || AI_BACKEND_URL.includes('YOUR-BACKEND-URL')) return { configured:false };
+  try{
+    const langName = langSelect.options[langSelect.selectedIndex].text;
+    const res = await fetch(AI_BACKEND_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ question, language: langName }) });
+    let data = null; try{ data = await res.json(); }catch(e){}
+    if(!res.ok){ const msg = (data && data.error) ? data.error : ('HTTP ' + res.status); addLog('AI backend error: ' + msg, 'e'); return { configured:true, error: msg }; }
+    if(data && data.answer) return { configured:true, answer: data.answer };
+    return { configured:true, error: 'Backend se khaali jawab mila' };
+  }catch(e){ addLog('AI backend unreachable: ' + e.message, 'e'); return { configured:true, error: 'connection failed' }; }
+}
+async function wikiSearchTitle(query, lang){
+  const url = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`;
+  const res = await fetch(url); const data = await res.json();
+  return data?.query?.search?.[0]?.title || null;
+}
+async function wikiSummary(title, lang){
+  const res = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+  const data = await res.json(); return data?.extract || null;
+}
+async function wikiAnswer(query){
+  try{ let title = await wikiSearchTitle(query, 'hi'); if(title){ const extract = await wikiSummary(title, 'hi'); if(extract) return { text: extract.slice(0,380), lang:'hi-IN' }; } }catch(e){}
+  try{ let title = await wikiSearchTitle(query, 'en'); if(title){ const extract = await wikiSummary(title, 'en'); if(extract) return { text: extract.slice(0,380), lang:'en-IN' }; } }catch(e){}
+  return null;
+}
+
+/* ================= Command handler ================= */
+async function handleCommand(cmdRaw){
+  const cmd = cmdRaw.toLowerCase().trim();
+  addLog('AAP: ' + cmdRaw, 'u');
+  statusText.textContent = 'Samajh raha hoon...';
+  setUIState('thinking');
+
+  // Add contact: "contact add papa 9876543210" / "kontak jodo papa 9876543210"
+  const addContactMatch = cmd.match(/contact\s*(add|banao|jodo)\s+([a-z\u0900-\u097F]+)\s+([0-9+]{8,15})/i);
+  if(addContactMatch){
+    addContact(addContactMatch[2], addContactMatch[3]);
+    speak(addContactMatch[2] + ' ko contacts mein save kar diya, boss.');
+    return;
+  }
+  if(cmd.includes('कॉन्टैक्ट') && (cmd.includes('दिखाओ') || cmd.includes('list'))){
+    const c = getContacts();
+    const names = Object.keys(c);
+    speak(names.length ? 'Aapke saved contacts hain: ' + names.join(', ') : 'Abhi koi contact save nahi hai. Bolo "contact add naam number" isse add karne ke liye.');
+    return;
+  }
+
+  // WhatsApp call/message to a saved contact
+  const waMatch = cmd.match(/(whatsapp|व्हाट्सएप्प)[^a-z\u0900-\u097F]*([a-z\u0900-\u097F]+)\s*(ko)?\s*(call|message|msg|bhejo)?/i);
+  if(waMatch && waMatch[2] && !['खोलो','kholo','open'].includes(waMatch[2])){
+    const number = findContact(waMatch[2]);
+    if(number){
+      const wantsCall = /call/i.test(cmd);
+      speak(waMatch[2] + ' ko WhatsApp par ' + (wantsCall ? 'call kar raha hoon' : 'khol raha hoon') + ', boss.');
+      launchApp(`whatsapp://send?phone=${number}`, `https://wa.me/${number}`);
+      return;
+    }else{
+      speak(waMatch[2] + ' mera saved contacts mein nahi mila. Pehle bolo "contact add ' + waMatch[2] + ' unka number".');
+      return;
+    }
+  }
+
+  for(const app of appMap){
+    if(app.keys.some(k => cmd.includes(k))){ speak(app.name + ' khol raha hoon, boss'); launchApp(app.scheme, app.web); return; }
+  }
+  if(cmd.includes('व्हाट्सएप्प') || cmd.includes('whatsapp')){
+    speak('WhatsApp khol raha hoon, boss'); launchApp('whatsapp://send', 'https://web.whatsapp.com'); return;
+  }
+  if(cmd.includes('call') || cmd.includes('कॉल')){
+    const num = cmd.replace(/[^0-9+]/g,'');
+    if(num){ speak(num + ' ko call kar raha hoon'); window.location.href = 'tel:' + num; }
+    else speak('Number bhi boliye, jaise "कॉल करो 9876543210", ya "contact add naam number" se pehle save karo.');
+    return;
+  }
+
+  // Weather
+  if(cmd.includes('मौसम') || cmd.includes('weather')){
+    const w = await getWeather();
+    speak(w || 'Mausam ki jaankari nahi mil payi — location permission allow karke dekhiye.');
+    return;
+  }
+
+  // News
+  if(cmd.includes('खबर') || cmd.includes('news') || cmd.includes('समाचार')){
+    const n = await getNews();
+    speak(n || 'Abhi khabrein la nahi paya, thodi der baad try kijiye.');
+    return;
+  }
+
+  // Alarm / reminder
+  if(cmd.includes('alarm') || cmd.includes('अलार्म') || cmd.includes('reminder') || cmd.includes('याद')){
+    const mins = parseAlarmMinutes(cmd);
+    if(mins){ setAlarmIn(mins, cmdRaw); speak(mins + ' minute ka alarm set kar diya, boss. Tab khula rakhna zaroori hai.'); }
+    else speak('Kitne minute baad? Jaise "10 minute ka alarm lagao".');
+    return;
+  }
+
+  if(cmd.includes('समय') || cmd.includes('time')){ speak('Abhi samay hai ' + new Date().toLocaleTimeString('hi-IN')); return; }
+  if(cmd.includes('तारीख') || cmd.includes('date')){ speak('Aaj hai ' + new Date().toLocaleDateString('hi-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'})); return; }
+  if(cmd.includes('नाम') || cmd.includes('who are you') || cmd.includes('तुम कौन')){ speak('Main JARVIS hoon, aapki personal AI assistant.'); return; }
+  if(cmd.includes('धन्यवाद') || cmd.includes('thanks')){ speak('Aapka swagat hai, boss.'); return; }
+
+  const mathAnswer = tryMath(cmdRaw);
+  if(mathAnswer !== null){ speak('Jawab hai ' + mathAnswer); return; }
+
+  const ai = await askAI(cmdRaw);
+  if(ai.answer){ speak(ai.answer); return; }
+  if(ai.configured){ speak('AI se abhi jawab nahi mil paya, boss. Render service so rahi ho sakti hai — thodi der baad dobara puchiye.'); return; }
+
+  let q = cmdRaw;
+  if(cmd.includes('search') || cmd.includes('खोजो') || cmd.includes('सर्च') || cmd.includes('गूगल')){
+    q = cmdRaw.replace(/search|खोजो|सर्च|गूगल|खोलो|पर/gi,'').trim();
+  }
+  const answer = await wikiAnswer(q);
+  if(answer){ speak(answer.text, answer.lang); }
+  else{ speak('Maaf kijiye, mujhe iska sateek jawab nahi mila. Sawaal thoda alag tarike se pooch kar dekhiye.'); }
+}
+
+/* ================= Wake-word + continuous silence-based capture ================= */
+let commandBuffer = '';
+let silenceTimer = null;
+const SILENCE_MS = 3000; // 3 sec pause = "user is done talking"
+
+function activateWake(remainderText){
+  awaitingWake = false;
+  wakeHandledForUtterance = true;
+  commandBuffer = '';
+  setUIState('wake');
+  statusText.textContent = 'AWAKE — sun raha hoon';
+  if(remainderText && remainderText.trim().length > 2){
+    speak('Yes boss');
+    handleCommand(remainderText.trim());
+  }else{
+    speak('Yes boss, main aapki kya madad kar sakta hoon');
+  }
+}
+function processFinal(text){
+  wakeHandledForUtterance = false;
+  if(awaitingWake){
+    const lower = text.toLowerCase();
+    const hit = WAKE_PHRASES.find(p => lower.includes(p));
+    if(hit){ const idx = lower.indexOf(hit); activateWake(text.slice(idx + hit.length).trim()); }
+    return;
+  }
+  handleCommand(text);
+  statusText.textContent = 'Sun raha hoon...';
+}
+
+function setupRecognition(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){
+    statusText.textContent = 'Unsupported browser';
+    addLog('⚠️ Speech Recognition supported nahi hai. Chrome browser use kijiye.', 'e');
+    micBtn.disabled = true;
+    return null;
+  }
+  const rec = new SR();
+  rec.lang = selectedLang; rec.continuous = true; rec.interimResults = true;
+
+  rec.onstart = () => { statusText.textContent = 'Listening for "Hello Jarvis"'; setUIState('listening'); };
+  rec.onend = () => {
+    if(speakingPause) return;
+    if(engineOn){ try{ rec.start(); }catch(e){} }
+    else{ statusText.textContent = 'Offline'; setUIState('idle'); }
+  };
+  rec.onerror = (e) => addLog('Error: ' + e.error, 'e');
+  rec.onresult = (e) => {
+    let interim='', final='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal) final += e.results[i][0].transcript;
+      else interim += e.results[i][0].transcript;
+    }
+    if(awaitingWake){
+      transcriptEl.textContent = final || interim;
+      if(final){ processFinal(final); transcriptEl.textContent=''; }
+      return;
+    }
+    if(final) commandBuffer = (commandBuffer + ' ' + final).trim();
+    transcriptEl.textContent = (commandBuffer + ' ' + interim).trim();
+    clearTimeout(silenceTimer);
+    const trailingInterim = interim;
+    silenceTimer = setTimeout(() => {
+      const toRun = (commandBuffer + ' ' + trailingInterim).trim();
+      commandBuffer = '';
+      transcriptEl.textContent = '';
+      if(toRun) processFinal(toRun);
+    }, SILENCE_MS);
+  };
+  return rec;
+}
+
+/* ================= Wake lock (keep screen active while tab is open) ================= */
+let wakeLock = null;
+async function requestWakeLock(){ try{ if('wakeLock' in navigator){ wakeLock = await navigator.wakeLock.request('screen'); } }catch(e){} }
+document.addEventListener('visibilitychange', async () => {
+  if(document.visibilityState === 'visible'){
+    if(engineOn){ if('wakeLock' in navigator && !wakeLock) requestWakeLock(); try{ recognition && recognition.start(); }catch(e){} statusText.textContent = awaitingWake ? 'Listening for "Hello Jarvis"' : 'Sun raha hoon...'; }
+  }else{ if(engineOn) statusText.textContent = 'Paused — app minimized ⚠'; }
+});
+
+function toggleListen(){
+  if(!recognition) recognition = setupRecognition();
+  if(!recognition) return;
+  engineOn = !engineOn;
+  if(engineOn){
+    micBtn.classList.add('on');
+    awaitingWake = true;
+    requestWakeLock();
+    speak('JARVIS engine online. Ab boliye Hello Jarvis.');
+  }else{
+    micBtn.classList.remove('on');
+    clearTimeout(silenceTimer);
+    commandBuffer = '';
+    recognition.stop();
+    if(canSpeak) speechSynthesis.cancel();
+    statusText.textContent='Offline';
+    setUIState('idle');
+    if(wakeLock){ wakeLock.release(); wakeLock = null; }
+  }
+}
+micBtn.addEventListener('click', toggleListen);
+document.querySelectorAll('.chip').forEach(chip => chip.addEventListener('click', () => handleCommand(chip.dataset.cmd)));
+
+if(!canSpeak){ addLog('⚠️ Is browser me text-to-speech support nahi hai. Chrome me kholne par awaaz milegi.', 'e'); }
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => { navigator.serviceWorker.register('service-worker.js').catch(()=>{}); });
+}
+</script>
+</body>
+</html>
